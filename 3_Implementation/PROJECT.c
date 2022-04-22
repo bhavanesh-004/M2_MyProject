@@ -17,7 +17,7 @@ void setup ()
 {
   pinMode(ir1,INPUT);pinMode(ir2,INPUT);
   lcd.begin(16, 2);
-  lcd.clear();lcd.print("CAR PARKING");
+  lcd.clear();lcd.print("EVALUATE");
   lcd.setCursor(0,1);lcd.print("BILLING SYSTEWM....");
     Serial.begin(115200);
     Wire.begin();
@@ -53,7 +53,7 @@ if((data[0]=='O')||(data[1]=='O')||(data[2]=='O')||(data[3]=='O'))
 if(temp==1)
 {
   temp=9;
- lcd.clear();lcd.print("VALID QR CODE");delay(1000);
+ lcd.clear();lcd.print("VALID LCD CODE");delay(1000);
  inhh=now.hour();inmm=now.minute();inss=now.second();
  lcd.setCursor(0,1);lcd.print("INTIME:");lcd.print(inhh);lcd.print(":");lcd.print(inmm);lcd.print(":");lcd.print(inss);delay(1000); 
 }
