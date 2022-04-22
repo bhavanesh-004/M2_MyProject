@@ -1,91 +1,342 @@
-#include <LiquidCrystal.h>
-#include<stdio.h>
+#include<reg51.h>
 #include<string.h>
-const int rs = 13, en = 12, d4 = 11, d5 = 10, d6 = 9, d7 = 8;
-int ir1=7;
-int ir2=6;
-int ir2time=0;
-LiquidCrystal lcd(rs, en, d4, d5, d6, d7);
-int inhh=0;int inmm=0;int inss=0;
-int outhh=0;int outmm=0;int outss=0;
-int temp=0;
-#include <Wire.h>
-#include "Sodaq_DS3231.h"
-char weekDay[][4] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
-DateTime dt(2022, 3, 25, 15, 57, 0, 5);
-void setup () 
-{
-  pinMode(ir1,INPUT);pinMode(ir2,INPUT);
-  lcd.begin(16, 2);
-  lcd.clear();lcd.print("EVALUATE");
-  lcd.setCursor(0,1);lcd.print("BILLING SYSTEWM....");
-    Serial.begin(115200);
-    Wire.begin();
-    rtc.begin();
-    //rtc.setDateTime(dt); //Adjust date-time as defined 'dt' above 
-    
-}
 
-void loop () 
+//Define Macros
+#define Error  13    // Any value other than 0 to 9 is good here
+
+//Function declarations
+void cct_init(void);
+void delay(int);
+void lcdinit(void);
+void writecmd(int);
+void writedata(char);
+void writeline(char[]);
+void ReturnHome(void);
+char READ_SWITCHES(void);
+char get_key(void);
+int get_num(char);
+char get_func(char);
+void DispError(int);
+void disp_num(int);
+void WebsiteLogo();
+
+//*******
+//Pin description
+/*
+P2 is data bus
+P3.7 is RS
+P3.6 is E
+P1.0 to P1.3 are keypad row outputs
+P1.4 to P1.7 are keypad column inputs
+*/
+//********
+// Define Pins
+//********
+sbit RowA = P1^0;     //RowA
+sbit RowB = P1^1;     //RowB
+sbit RowC = P1^2;     //RowC
+sbit RowD = P1^3;     //RowD
+
+sbit C1   = P1^4;     //Column1
+sbit C2   = P1^5;     //Column2
+sbit C3   = P1^6;     //Column3
+sbit C4   = P1^7;     //Column4
+
+sbit E    = P3^6;     //E pin for LCD
+sbit RS   = P3^7;     //RS pin for LCD
+
+// *********************
+// Main program
+//
+int main(void)
 {
-    DateTime now = rtc.now(); //get the current date-time
-    lcd.clear();
-    lcd.print(now.year(), DEC);lcd.print('/');
-    lcd.print(now.month(), DEC);lcd.print('/');
-    lcd.print(now.date(), DEC);lcd.print(' ');
-    lcd.setCursor(5,1);
-    lcd.print(now.hour(), DEC);lcd.print(':');
-    lcd.print(now.minute(), DEC);lcd.print(':');
-    lcd.print(now.second(), DEC);delay(1000);
+   char key;                     //key char for keeping record of pressed key
+   int num1 = 0;                 //First number
+   char func = '+';              //Function to be performed among two numbers
+   int num2 = 0;                 //Second number
    
-while(Serial.available())
-{
-String data=Serial.readString();
-lcd.clear();lcd.print(data);delay(1000);
-if((data[0]=='I')||(data[1]=='I')||(data[2]=='I')||(data[3]=='I'))
-{
-  temp=1;delay(1000);
+   cct_init();                   //Make input and output pins as required
+   lcdinit();                    //Initilize LCD
+   WebsiteLogo();
+   while(1)
+   { 
+     WebsiteLogo();
+     //get numb1
+     key = get_key();
+     writecmd(0x01);            //clear display
+	 WebsiteLogo();
+	 writedata(key);            //Echo the key pressed to LCD
+	 num1 = get_num(key);       //Get int number from char value, it checks for wrong input as well
+     
+	 if(num1!=Error)            //if correct input then proceed, num1==Error means wrong input
+	 {
+		 //get function
+		 key = get_key();
+		 writedata(key);                  //Echo the key pressed to LCD
+		 func = get_func(key);            //it checks for wrong func
+		 
+		 if(func!='e')                    //if correct input then proceed, func=='e' means wrong input
+		 {
+			 //get numb2
+			 key = get_key();
+			 writedata(key);              //Echo the key pressed to LCD
+			 num2 = get_num(key);         //Get int number from char value, it checks for wrong input as well
+			 
+			 if(num2!=Error)              //if correct input then proceed, num2==Error means wrong input
+			 {
+				 //get equal sign
+				 key = get_key();
+				 writedata(key);          //Echo the key pressed to LCD
+				 
+				 if(key == '=')           //if = is pressed then proceed
+				 {
+					 switch(func)         //switch on function
+					 {
+					 case '+': disp_num(num1+num2); break;
+					 case '-': disp_num(num1-num2); break;
+					 case 'x': disp_num(num1*num2); break;
+					 case '/': disp_num(num1/num2); break;
+					 }
+				 }
+				 else				      //key other then = here means error wrong input
+				 { 
+					 if(key == 'C')       //if clear screen is pressed then clear screen and reset
+					 {
+					    writecmd(0x01);   //Clear Screen
+						WebsiteLogo();
+					 }
+					 else
+					 {
+					 	DispError(0); 	  //Display wrong input error
+						WebsiteLogo();
+					 }
+				 }                                 
+			 }
+		 }
+     }
+   }
 }
-if((data[0]=='O')||(data[1]=='O')||(data[2]=='O')||(data[3]=='O'))
+
+void WebsiteLogo()
 {
-  temp=2;delay(1000);
+   writecmd(0x95);
+   writedata('w');                                 //write
+   writedata('w');                                 //write
+   writedata('w');                                 //write
+   writedata('.');                                 //write
+   writedata('T');                                 //write
+   writedata('h');                                 //write
+   writedata('e');                                 //write
+   writedata('E');                                 //write
+   writedata('n');                                 //write
+   writedata('g');                                 //write
+   writedata('i');                                 //write
+   writedata('n');                                 //write
+   writedata('e');                                 //write
+   writedata('e');                                 //write
+   writedata('r');                                 //write
+   writedata('i');                                 //write
+   writedata('n');                                 //write
+   writedata('g');                                 //write
+ 
+   writecmd(0xd8);
+ 
+   writedata('P');                                 //write
+   writedata('r');                                 //write
+   writedata('o');                                 //write
+   writedata('j');                                 //write
+   writedata('e');                                 //write
+   writedata('c');                                 //write
+   writedata('t');                                 //write
+   writedata('s');                                 //write
+   writedata('.');                                 //write
+   writedata('c');                                 //write
+   writedata('o');                                 //write
+   writedata('m');                                 //write
+   writecmd(0x80);
 }
-if(temp==1)
+
+void cct_init(void)
 {
-  temp=9;
- lcd.clear();lcd.print("VALID LCD CODE");delay(1000);
- inhh=now.hour();inmm=now.minute();inss=now.second();
- lcd.setCursor(0,1);lcd.print("INTIME:");lcd.print(inhh);lcd.print(":");lcd.print(inmm);lcd.print(":");lcd.print(inss);delay(1000); 
+	P0 = 0x00;   //not used
+	P1 = 0xf0;   //used for generating outputs and taking inputs from Keypad
+	P2 = 0x00;   //used as data port for LCD
+	P3 = 0x00;   //used for RS and E   
 }
-else if(temp==2)
+
+void delay(int a)
 {
-  temp=9;
- lcd.clear();lcd.print("VALID QR CODE");delay(1000);
- outhh=now.hour();outmm=now.minute();outss=now.second();
- lcd.setCursor(0,1);lcd.print("OUTTIME:");lcd.print(outhh);lcd.print(":");lcd.print(outmm);lcd.print(":");lcd.print(outss);delay(1000);delay(1000); 
-lcd.clear();        lcd.print("IN ");lcd.print(inhh);lcd.print(":");lcd.print(inmm);lcd.print(":");lcd.print(inss);delay(1000);
-lcd.setCursor(0,1);lcd.print("OUT ");lcd.print(outhh);lcd.print(":");lcd.print(outmm);lcd.print(":");lcd.print(outss);delay(5000);  
-lcd.clear();lcd.print("BILLING (HH/MM) ");lcd.print(outmm-inmm);lcd.print(":");lcd.print(outmm-inmm);delay(5000);
-int mm=outmm-inmm;
-int hh=outhh-inhh;
-lcd.clear();lcd.print("DURA(HH/MM) ");lcd.print(hh);lcd.print(":");lcd.print(mm);delay(1000);
-lcd.setCursor(0,1);lcd.print("Amount:");
-float amount=((hh*1)+(mm*0.5));lcd.print(amount);lcd.print("/Rs");delay(10000);temp=0;
+   int i;
+   for(i=0;i<a;i++);   //null statement
 }
+
+void writedata(char t)
+{
+   RS = 1;             // This is data
+   P2 = t;             //Data transfer
+   E  = 1;             // => E = 1
+   delay(150);
+   E  = 0;             // => E = 0
+   delay(150);
 }
 
 
-
-int ir1val=digitalRead(ir1);delay(10);
-int ir2val=digitalRead(ir2);delay(10);
-if(ir1val==LOW){lcd.clear();lcd.print("S1:BUSY");  }
-if(ir1val==HIGH){lcd.clear();lcd.print("S1:FREE");  }
-if(temp==1)
+void writecmd(int z)
 {
-lcd.setCursor(0,1);lcd.print("S1:BOOKED");  delay(1000); 
+   RS = 0;             // This is command
+   P2 = z;             //Data transfer
+   E  = 1;             // => E = 1
+   delay(150);
+   E  = 0;             // => E = 0
+   delay(150);
 }
-if(ir2val==LOW){lcd.print(" S2:BUSY");ir2time=ir2time+1;delay(1000);lcd.setCursor(0,1);lcd.print("S2 BILL  ");lcd.print(ir2time*0.5);delay(1000);  }
-if(ir2val==HIGH){lcd.print(" S2:FREE"); ir2time=0;}delay(2000);
+
+void lcdinit(void)
+{
+  ///////////// Reset process from datasheet /////////
+     delay(15000);
+   writecmd(0x30);
+     delay(4500);
+   writecmd(0x30);
+     delay(300);
+   writecmd(0x30);
+     delay(650);
+  /////////////////////////////////////////////////////
+   writecmd(0x38);    //function set
+   writecmd(0x0c);    //display on,cursor off,blink off
+   writecmd(0x01);    //clear display
+   writecmd(0x06);    //entry mode, set increment
+}
+
+void ReturnHome(void)     /* Return to 0 cursor location */
+{
+   writecmd(0x02);
+   delay(1500);
+   WebsiteLogo();
+}
+
+void writeline(char Line[])
+{
+   int i;
+   for(i=0;i<strlen(Line);i++)
+   {
+      writedata(Line[i]);     /* Write Character */
+   }
+   
+   ReturnHome();          /* Return to 0 cursor position */
+}
+
+char READ_SWITCHES(void)	
+{	
+	RowA = 0; RowB = 1; RowC = 1; RowD = 1; 	//Test Row A
+
+	if (C1 == 0) { delay(10000); while (C1==0); return '7'; }
+	if (C2 == 0) { delay(10000); while (C2==0); return '8'; }
+	if (C3 == 0) { delay(10000); while (C3==0); return '9'; }
+	if (C4 == 0) { delay(10000); while (C4==0); return '/'; }
+
+	RowA = 1; RowB = 0; RowC = 1; RowD = 1; 	//Test Row B
+
+	if (C1 == 0) { delay(10000); while (C1==0); return '4'; }
+	if (C2 == 0) { delay(10000); while (C2==0); return '5'; }
+	if (C3 == 0) { delay(10000); while (C3==0); return '6'; }
+	if (C4 == 0) { delay(10000); while (C4==0); return 'x'; }
+	
+	RowA = 1; RowB = 1; RowC = 0; RowD = 1; 	//Test Row C
+
+	if (C1 == 0) { delay(10000); while (C1==0); return '1'; }
+	if (C2 == 0) { delay(10000); while (C2==0); return '2'; }
+	if (C3 == 0) { delay(10000); while (C3==0); return '3'; }
+	if (C4 == 0) { delay(10000); while (C4==0); return '-'; }
+	
+	RowA = 1; RowB = 1; RowC = 1; RowD = 0; 	//Test Row D
+
+	if (C1 == 0) { delay(10000); while (C1==0); return 'C'; }
+	if (C2 == 0) { delay(10000); while (C2==0); return '0'; }
+	if (C3 == 0) { delay(10000); while (C3==0); return '='; }
+	if (C4 == 0) { delay(10000); while (C4==0); return '+'; }
+
+	return 'n';           	// Means no key has been pressed
+}
+
+char get_key(void)           //get key from user
+{
+	char key = 'n';              //assume no key pressed
+
+	while(key=='n')              //wait untill a key is pressed
+		key = READ_SWITCHES();   //scan the keys again and again
+
+	return key;                  //when key pressed then return its value
+}
+
+int get_num(char ch)         //convert char into int
+{
+	switch(ch)
+	{
+		case '0': return 0; break;
+		case '1': return 1; break;
+		case '2': return 2; break;
+		case '3': return 3; break;
+		case '4': return 4; break;
+		case '5': return 5; break;
+		case '6': return 6; break;
+		case '7': return 7; break;
+		case '8': return 8; break;
+		case '9': return 9; break;
+		case 'C': writecmd(0x01); return Error; break;  //this is used as a clear screen and then reset by setting error
+		default: DispError(0); return Error; break;     //it means wrong input
+	}
+}
+
+char get_func(char chf)            //detects the errors in inputted function
+{
+	if(chf=='C')                   //if clear screen then clear the LCD and reset
+	{ 
+		writecmd(0x01);            //clear display
+		WebsiteLogo();
+		return 'e'; 
+	}
+	
+	if( chf!='+' && chf!='-' && chf!='x' && chf!='/' )  //if input is not from allowed funtions then show error
+	{ 
+		DispError(1); 
+		WebsiteLogo();
+		return 'e'; 
+	}
+
+	return chf;                        //function is correct so return the correct function
+}
 
 
+void DispError(int numb)           //displays differet error messages
+{
+	writecmd(0x01);                //clear display
+	WebsiteLogo();
+	switch(numb)
+	{
+	case 0: 	writeline("Wrong Input");      break;
+	case 1: 	writeline("Wrong Function");   break;
+	default:    writeline("Wrong Input");      break;
+	}
+}
+
+void disp_num(int numb)            //displays number on LCD
+{	
+	unsigned char UnitDigit  = 0;  //It will contain unit digit of numb
+	unsigned char TenthDigit = 0;  //It will contain 10th position digit of numb
+
+	if(numb<0)
+	{
+		numb = -1*numb;  // Make number positive
+		writedata('-');	 // Display a negative sign on LCD
+	}
+
+	TenthDigit = (numb/10);	          // Findout Tenth Digit
+
+	if( TenthDigit != 0)	          // If it is zero, then don't display
+		writedata(TenthDigit+0x30);	  // Make Char of TenthDigit and then display it on LCD
+
+	UnitDigit = numb - TenthDigit*10;
+
+	writedata(UnitDigit+0x30);	  // Make Char of UnitDigit and then display it on LCD
 }
