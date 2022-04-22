@@ -1,5 +1,5 @@
-# HOTSEAT
-The buttons have to be switched on before the app starts working. Potentiometer acts as temperature sensor. It gives signal which is converted by ADC and used to make a PWM signal pf corresponding duty cycle, as seen in the oscilloscope. As potentiometer is varied, message containing detected temperature is shown in serial monitor.
+# EVALUATING CODE FOR LCD AND DATA ACQUISITION
+To integrate an LCD with AVR microcontroller that can be display a string of characters using hexadecimal data values.Implement a program code for ATMEGA328P to display the numbers 0-9 lon the 16X2 LCDdisplay using keypad.
 
 ## Folder Structure
 
@@ -14,8 +14,8 @@ The buttons have to be switched on before the app starts working. Potentiometer 
 
 |Feature Id|Feature|
 |----------|-------|
-|F_01|sensing if the person is seated|
-|F_02|Blinking the LED|
+|F_01|addition,subraction,multiplication,division|
+|F_02|Displaying in 16X2 LCD|
 
 ## Challenges Faced and How Was It Overcome
 
